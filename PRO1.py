@@ -1,126 +1,121 @@
+import streamlit as st
 import pandas as pd
 import requests
-import threading
-from sklearn.model_selection import train_test_split
+import joblib
 from sklearn.preprocessing import LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
-import tkinter as tk
-from tkinter import ttk, messagebox
-import tkintermapview
+import folium
+from streamlit_folium import st_folium
+import rasterio
+import numpy as np
+import os
+import leafmap.foliumap as leafmap
+import warnings
 import time
+import tempfile
+
+warnings.filterwarnings("ignore", category=rasterio.errors.NotGeoreferencedWarning)
 
 # =========================
-# 1. Đọc dữ liệu CSV & train model
+# 1️⃣ Cấu hình trang
 # =========================
-df = pd.read_csv("Book1.csv")
+st.set_page_config(page_title="Dự báo Sạt lở & Bản đồ DEM", layout="wide")
+st.title("🌋 Dự báo Sạt lở & Ngập lụt")
 
+# =========================
+# 2️⃣ Đọc dữ liệu & Train model
+# =========================
+csv_path = os.path.join(os.path.dirname(__file__), "Book1.csv")
+if not os.path.exists(csv_path):
+    st.error("⚠️ Không tìm thấy file Book1.csv trong thư mục.")
+    st.stop()
+
+df = pd.read_csv(csv_path)
 le = LabelEncoder()
 df["soil_type"] = le.fit_transform(df["soil_type"])
-soil_types = list(df["soil_type"].unique())
-soil_labels = list(le.inverse_transform(soil_types))
+soil_labels = list(le.classes_)
 
 X = df[["slope", "elevation", "rain_mean_year", "soil_type", "dist_river", "rain_forecast_24h"]]
 y = df["label"]
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.3, stratify=y, random_state=42
-)
 
 model = RandomForestClassifier(n_estimators=100, random_state=42, class_weight="balanced")
-model.fit(X_train, y_train)
+model.fit(X, y)
+
+API_KEY = "2d4a3206becec3a48aa294ad6c759160"
 
 # =========================
-# 2. API OpenWeather + OSM
+# 3️⃣ Đọc DEM & tạo slope map
 # =========================
-API_KEY = "2d4a3206becec3a48aa294ad6c759160"  # thay API key của bạn nếu cần
+dem_path = os.path.join(os.path.dirname(__file__), "Lao Cai_DEM.tif")
+if not os.path.exists(dem_path):
+    st.error("⚠️ Không tìm thấy file Lao Cai_DEM.tif trong thư mục.")
+    st.stop()
 
+with rasterio.open(dem_path) as src:
+    dem = src.read(1, masked=True)
+    transform_affine = src.transform
+    crs = src.crs
+    profile = src.profile.copy()
+    xres = transform_affine[0]
+    yres = -transform_affine[4]
+    gy, gx = np.gradient(dem, yres, xres)
+    slope_rad = np.arctan(np.sqrt(gx * gx + gy * gy))
+    slope_deg = np.degrees(slope_rad)
+
+tmp_dir = tempfile.gettempdir()
+slope_path = os.path.join(tmp_dir, f"LaoCai_SLOPE_{int(time.time())}.tif")
+profile.update(dtype=rasterio.float32, count=1, nodata=None)
+with rasterio.open(slope_path, "w", **profile) as dst:
+    dst.write(slope_deg.astype(rasterio.float32), 1)
+
+from pyproj import Transformer
+
+def get_value_at_latlon(lat, lon):
+    """Lấy độ cao và độ dốc từ DEM tại tọa độ (lat, lon WGS84)."""
+    with rasterio.open(dem_path) as src1, rasterio.open(slope_path) as src2:
+        # Bộ chuyển đổi: từ WGS84 (EPSG:4326) sang CRS của DEM (EPSG:32648)
+        transformer = Transformer.from_crs("EPSG:4326", src1.crs, always_xy=True)
+        x, y = transformer.transform(lon, lat)
+
+        coords = [(x, y)]
+        val_elev = list(src1.sample(coords))[0][0]
+        val_slope = list(src2.sample(coords))[0][0]
+        return float(val_elev), float(val_slope)
+
+
+# =========================
+# 4️⃣ Hàm tiện ích
+# =========================
 def get_coordinates_from_osm(address):
-    """
-    Lấy kinh độ & vĩ độ từ địa chỉ qua OpenStreetMap (Nominatim)
-    """
     url = "https://nominatim.openstreetmap.org/search"
-    params = {"q": address, "format": "json", "limit": 1, "addressdetails": 1}
-    headers = {"User-Agent": "LandslidePredictor/1.0 (contact: example@example.com)"}
-
+    params = {"q": address, "format": "json", "limit": 1}
+    headers = {"User-Agent": "LandslidePredictorWeb/1.0"}
     res = requests.get(url, params=params, headers=headers, timeout=10)
-    res.raise_for_status()
     data = res.json()
     if not data:
-        raise ValueError("Không tìm thấy địa chỉ trên bản đồ.")
-    lat = float(data[0]["lat"])
-    lon = float(data[0]["lon"])
-    display_name = data[0].get("display_name", "")
-    return lat, lon, display_name
-
-def get_current_weather(lat, lon):
-    """
-    Lấy thời tiết hiện tại (dùng cho 1h)
-    """
-    url_current = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={API_KEY}&units=metric"
-    resp = requests.get(url_current, timeout=10)
-    resp.raise_for_status()
-    return resp.json()
+        raise ValueError("Không tìm thấy địa chỉ.")
+    return float(data[0]["lat"]), float(data[0]["lon"]), data[0].get("display_name", "")
 
 def get_forecast(lat, lon):
-    """
-    Lấy forecast 3h-block từ OpenWeather (dùng cho 3h/6h)
-    """
     url_forecast = f"http://api.openweathermap.org/data/2.5/forecast?lat={lat}&lon={lon}&appid={API_KEY}&units=metric"
     resp = requests.get(url_forecast, timeout=10)
     resp.raise_for_status()
     return resp.json()
 
-def sum_rain_for_hours(lat, lon, hours, current_json=None, forecast_json=None):
-    """
-    Tính tổng lượng mưa dự kiến trong 'hours' giờ tới.
-    - nếu hours == 1: ưu tiên current_json["rain"]["1h"]
-    - nếu hours in (3,6): cộng các block 3h từ forecast_json tương ứng
-    Trả về total_rain_mm (float).
-    """
+def sum_rain_for_hours(lat, lon, hours, forecast_json=None):
     total = 0.0
-    # lấy current nếu chưa truyền
-    if current_json is None:
-        try:
-            current_json = get_current_weather(lat, lon)
-        except Exception:
-            current_json = {}
-
-    # 1 giờ: lấy current["rain"]["1h"] nếu có, ngược lại khai thác forecast 3h block và scale xuống 1h
-    if hours == 1:
-        total = float(current_json.get("rain", {}).get("1h", 0.0) or 0.0)
-        # fallback: nếu không có current rain, dùng forecast đầu tiên và chia cho 3
-        if total == 0.0:
-            if forecast_json is None:
-                try:
-                    forecast_json = get_forecast(lat, lon)
-                except Exception:
-                    forecast_json = {}
-            first_block = forecast_json.get("list", [])
-            if first_block:
-                block = first_block[0]
-                r3 = float(block.get("rain", {}).get("3h", 0.0) or 0.0)
-                total = r3 / 3.0  # xấp xỉ 1h
-    else:
-        # cần forecast
-        if forecast_json is None:
-            forecast_json = get_forecast(lat, lon)
-        blocks_needed = (hours + 2) // 3  # 3h per block; 3->1, 6->2
-        for block in forecast_json.get("list", [])[:blocks_needed]:
-            total += float(block.get("rain", {}).get("3h", 0.0) or 0.0)
-
+    if forecast_json is None:
+        forecast_json = get_forecast(lat, lon)
+    blocks_needed = (hours + 2) // 3
+    for block in forecast_json.get("list", [])[:blocks_needed]:
+        total += float(block.get("rain", {}).get("3h", 0.0) or 0.0)
     return total
 
 def compute_flood_status_from_rain(total_rain_mm, hours, drainage_rate_mm_per_hour=50.0):
-    """
-    Tính trạng thái ngập:
-    - khả năng thoát = drainage_rate_mm_per_hour * hours
-    - effective = max(0, total_rain_mm - capacity)
-    - phân loại effective: <=50: Không ngập, <=100: Ngập thấp, >100: Ngập cao
-    """
     capacity = drainage_rate_mm_per_hour * hours
     effective = total_rain_mm - capacity
     if effective <= 0:
         effective = 0.0
-
     if effective <= 50:
         flood_status = "Không ngập"
     elif effective <= 100:
@@ -129,8 +124,7 @@ def compute_flood_status_from_rain(total_rain_mm, hours, drainage_rate_mm_per_ho
         flood_status = "Ngập cao"
     return effective, flood_status
 
-def predict_landslide_using_rain(lat, lon, slope, elevation, rain_mean_year, soil_type, dist_river, rain_24h):
-    # mã hóa soil_type (nếu unseen sẽ ném lỗi; giữ như cũ)
+def predict_landslide(slope, elevation, rain_mean_year, soil_type, dist_river, rain_24h):
     soil_encoded = le.transform([soil_type])[0]
     new_point = pd.DataFrame([{
         "slope": slope,
@@ -140,163 +134,141 @@ def predict_landslide_using_rain(lat, lon, slope, elevation, rain_mean_year, soi
         "dist_river": dist_river,
         "rain_forecast_24h": rain_24h
     }])
-    probs = model.predict_proba(new_point)[0]
-    # giả sử nhãn dương ở index 1 như cũ
-    prob = float(probs[1]) if len(probs) > 1 else float(probs[0])
-    label = "Nguy cơ cao" if prob > 0.6 else "Nguy cơ trung bình" if prob > 0.3 else "Nguy cơ thấp"
+    prob = model.predict_proba(new_point)[0][1]
+    label = "Nguy cơ cao" if prob > 0.5 else "Nguy cơ trung bình" if prob > 0.2 else "Nguy cơ thấp"
     return prob, label
 
 # =========================
-# 3. GUI với Tkinter
+# 5️⃣ Tabs chính
 # =========================
-root = tk.Tk()
-root.title("Dự báo nguy cơ sạt lở + Ngập lụt")
-root.geometry("1200x720")
+tab1, tab2 = st.tabs(["📊 Dự báo Sạt lở & Ngập lụt", "🗺️ Bản đồ DEM & Độ dốc"])
 
-frame_left = tk.Frame(root, width=420, bg="white")
-frame_left.pack(side="left", fill="y")
-frame_right = tk.Frame(root)
-frame_right.pack(side="right", fill="both", expand=True)
+# =============== TAB 1 ===============
+with tab1:
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        mode = st.radio("Chọn cách nhập tọa độ:", ["Nhập địa chỉ", "Nhập kinh độ/vĩ độ"])
 
-# ======================
-# Ô nhập liệu
-# ======================
-tk.Label(frame_left, text="Thông tin vị trí", font=("Arial", 10, "bold")).pack(anchor="w", padx=5, pady=5)
-tk.Label(frame_left, text="Địa chỉ:").pack(anchor="w", padx=5)
-entry_address = tk.Entry(frame_left, width=45)
-entry_address.pack(anchor="w", padx=5, pady=2)
+        if mode == "Nhập địa chỉ":
+            address = st.text_input("📍 Địa chỉ:")
+            lat = lon = None
+        else:
+            lat = st.number_input("Vĩ độ (latitude):", format="%.6f")
+            lon = st.number_input("Kinh độ (longitude):", format="%.6f")
+            if st.button("📈 Lấy độ cao & độ dốc từ DEM"):
+                try:
+                    elev, slope = get_value_at_latlon(lat, lon)
+                    st.session_state["auto_elev"] = elev
+                    st.session_state["auto_slope"] = slope
+                    st.success(f"✅ Lấy thành công! Độ cao: {elev:.2f} m | Độ dốc: {slope:.2f}°")
+                except Exception as e:
+                    st.error(f"Lỗi: {e}")
 
-tk.Label(frame_left, text="").pack(pady=2)
-tk.Label(frame_left, text="Địa hình", font=("Arial", 10, "bold")).pack(anchor="w", padx=5, pady=5)
-tk.Label(frame_left, text="Độ dốc (%):").pack(anchor="w", padx=5)
-entry_slope = tk.Entry(frame_left); entry_slope.pack(anchor="w", padx=5, pady=2)
-tk.Label(frame_left, text="Độ cao (m):").pack(anchor="w", padx=5)
-entry_elev = tk.Entry(frame_left); entry_elev.pack(anchor="w", padx=5, pady=2)
-tk.Label(frame_left, text="Khoảng cách đến sông (km):").pack(anchor="w", padx=5)
-entry_river = tk.Entry(frame_left); entry_river.pack(anchor="w", padx=5, pady=2)
+        slope = st.number_input("Độ dốc (%)", 0.0, value=st.session_state.get("auto_slope", 0.0))
+        elev = st.number_input("Độ cao (m)", 0.0, value=st.session_state.get("auto_elev", 0.0))
+        dist_river = st.number_input("Khoảng cách đến sông (km)", 0.0)
+        rain_mean_year = st.number_input("Lượng mưa TB năm (mm)", 0.0)
+        soil_type = st.selectbox("Loại đất", soil_labels)
+        hours = st.selectbox("Khung giờ dự báo mưa", [1, 3, 6])
 
-tk.Label(frame_left, text="").pack(pady=2)
-tk.Label(frame_left, text="Khí hậu", font=("Arial", 10, "bold")).pack(anchor="w", padx=5, pady=5)
-tk.Label(frame_left, text="Mưa trung bình năm (mm):").pack(anchor="w", padx=5)
-entry_rain = tk.Entry(frame_left); entry_rain.pack(anchor="w", padx=5, pady=2)
-
-tk.Label(frame_left, text="Loại đất:").pack(anchor="w", padx=5)
-combo_soil = ttk.Combobox(frame_left, values=soil_labels, state="readonly")
-if soil_labels:
-    combo_soil.current(0)
-combo_soil.pack(anchor="w", padx=5, pady=2)
-
-# Combobox chọn khung thời gian ngập
-tk.Label(frame_left, text="Dự báo ngập lụt trong:").pack(anchor="w", padx=5, pady=(8,0))
-combo_hours = ttk.Combobox(frame_left, values=["1 giờ", "3 giờ", "6 giờ"], state="readonly", width=10)
-combo_hours.current(0)
-combo_hours.pack(anchor="w", padx=5, pady=2)
-
-result_text = tk.StringVar()
-result_label = tk.Label(frame_left, textvariable=result_text, font=("Arial", 10, "bold"), justify="left")
-result_label.pack(anchor="w", padx=5, pady=10)
-
-current_marker = [None]
-
-# ======================
-# Dự đoán (threaded)
-# ======================
-def on_predict():
-    def run_prediction():
-        try:
-            address = entry_address.get().strip()
-            if not address:
-                raise ValueError("Vui lòng nhập địa chỉ cụ thể!")
-
-            # Lấy tọa độ từ OSM
-            lat, lon, full_addr = get_coordinates_from_osm(address)
-            time.sleep(1)  # tránh limit OSM
-
-            # Lấy dữ liệu current + forecast một lần để dùng ngắn gọn
+        if st.button("🔍 Dự đoán"):
             try:
-                current_json = get_current_weather(lat, lon)
-            except Exception:
-                current_json = {}
-            try:
+                if mode == "Nhập địa chỉ":
+                    lat, lon, full_addr = get_coordinates_from_osm(address)
+                elif lat and lon:
+                    full_addr = f"Tọa độ ({lat:.5f}, {lon:.5f})"
+                else:
+                    raise ValueError("Chưa nhập đủ tọa độ.")
+
                 forecast_json = get_forecast(lat, lon)
-            except Exception:
-                forecast_json = {}
+                total_rain = sum_rain_for_hours(lat, lon, hours, forecast_json)
+                effective, flood_status = compute_flood_status_from_rain(total_rain, hours)
 
-            # Xác định hours từ combobox
-            hours_text = combo_hours.get()
-            hours = int(hours_text.split()[0]) if hours_text else 1
+                mean_elev = df["elevation"].mean()
+                mean_slope = df["slope"].mean()
+                if elev > mean_elev + 1 or slope > 10:
+                    if flood_status == "Ngập cao":
+                        flood_status = "Ngập thấp"
+                    elif flood_status == "Ngập thấp":
+                        flood_status = "Không ngập"
 
-            # Tính tổng mưa trong khung hours
-            total_rain = sum_rain_for_hours(lat, lon, hours, current_json=current_json, forecast_json=forecast_json)
+                rain_24h = sum_rain_for_hours(lat, lon, 24, forecast_json)
+                prob, label = predict_landslide(slope, elev, rain_mean_year, soil_type, dist_river, rain_24h)
 
-            # Tính effective rain sau khi trừ khả năng thoát nước (50 mm/h)
-            effective_rain, flood_status = compute_flood_status_from_rain(total_rain, hours, drainage_rate_mm_per_hour=50.0)
+                st.session_state["result"] = {
+                    "hours": hours,
+                    "total_rain": total_rain,
+                    "flood_status": flood_status,
+                    "label": label,
+                    "prob": prob,
+                    "lat": lat,
+                    "lon": lon,
+                    "full_addr": full_addr
+                }
 
-            # Lấy rain_24h dùng cho model (dùng forecast_json)
-            rain_24h = 0.0
-            for block in forecast_json.get("list", [])[:8]:
-                rain_24h += float(block.get("rain", {}).get("3h", 0.0) or 0.0)
+            except Exception as e:
+                st.error(f"Lỗi: {e}")
 
-            # Lấy các input khác cho model
-            slope = float(entry_slope.get())
-            elevation = float(entry_elev.get())
-            rain_mean_year = float(entry_rain.get())
-            soil_type = combo_soil.get()
-            dist_river = float(entry_river.get())
+    with col2:
+        if "result" in st.session_state:
+            res = st.session_state["result"]
+            color = "🟢" if res["label"] == "Nguy cơ thấp" else "🟠" if res["label"] == "Nguy cơ trung bình" else "🔴"
+            st.markdown(f"""
+                ### 🔎 Kết quả dự đoán
+                🌧 Mưa {res["hours"]}h tới: `{res["total_rain"]:.1f} mm`  
+                🚨 Ngập: `{res["flood_status"]}`  
+                ⛰ Sạt lở: `{res["label"]}` ({res["prob"]*100:.1f}%){color}
+            """)
+            m = folium.Map(location=[res["lat"], res["lon"]], zoom_start=11)
+            folium.Marker([res["lat"], res["lon"]], popup=f"{res['label']}", tooltip=res["full_addr"]).add_to(m)
+            st_folium(m, width=700, height=500)
 
-            prob, landslide_label = predict_landslide_using_rain(lat, lon, slope, elevation, rain_mean_year, soil_type, dist_river, rain_24h)
+with tab2:
+    # --- tạo map ---
+    m2 = leafmap.Map(center=[22.35, 104.02], zoom=10, draw_control=False, measure_control=True)
+    m2.add_child(folium.Element("<style>.leaflet-container { cursor: crosshair !important; }</style>"))
+    m2.add_basemap("OpenTopoMap")
+    m2.add_raster(dem_path, colormap="terrain", layer_name="Độ cao (m)", opacity=0.5)
+    m2.add_raster(slope_path, colormap="RdYlGn_r", layer_name="Độ dốc (°)", opacity=0.5)
+    folium.LayerControl(collapsed=False).add_to(m2)
 
-            prob_percent = f"{prob * 100:.2f}%"
-            color = "green" if landslide_label == "Nguy cơ thấp" else "orange" if landslide_label == "Nguy cơ trung bình" else "red"
+    # --- nếu đã có marker cũ ---
+    if "clicked_info" in st.session_state:
+        lat, lon, elev, slopev = st.session_state["clicked_info"]
+        folium.Marker(
+            [lat, lon],
+            popup=f"Độ cao: {elev:.2f} m<br>Độ dốc: {slopev:.2f}°",
+            tooltip="Điểm đã chọn",
+            icon=folium.Icon(color="blue", icon="info-sign")
+        ).add_to(m2)
 
-            # Hiển thị kết quả: bao gồm total_rain trong hours, effective_rain, flood_status, và sạt lở
-            root.after(0, lambda: (
-                result_text.set(
-                    f"🌧 Tổng mưa dự kiến {hours}h tới: {total_rain:.1f} mm\n"
-                    f"🚨 Dự báo ngập: {flood_status}\n\n"
-                    f"⛰ Xác suất sạt lở: {prob_percent}\n"
-                    f"→ {landslide_label}"
-                ),
-                result_label.config(fg=color),
-                update_map(lat, lon, landslide_label),
-                history_table.insert("", "end", values=(address, f"{hours}h", prob_percent, flood_status))
-            ))
+    # --- map hiển thị ---
+    click = st_folium(m2, width=900, height=600)
 
-        except Exception as e:
-            root.after(0, lambda: messagebox.showerror("Lỗi", f"Dữ liệu nhập không hợp lệ hoặc lỗi API:\n{e}"))
+    # --- xử lý khi click mới ---
+    if click and "last_clicked" in click and click["last_clicked"]:
+        lat = click["last_clicked"]["lat"]
+        lon = click["last_clicked"]["lng"]
+        elev, slopev = get_value_at_latlon(lat, lon)
+        st.session_state["clicked_info"] = (lat, lon, elev, slopev)
 
-    threading.Thread(target=run_prediction, daemon=True).start()
+        # thêm marker trước khi rerun
+        folium.Marker(
+            [lat, lon],
+            popup=f"Độ cao: {elev:.2f} m<br>Độ dốc: {slopev:.2f}°",
+            tooltip="Điểm vừa chọn",
+            icon=folium.Icon(color="red", icon="info-sign")
+        ).add_to(m2)
+        st.rerun()
 
-def update_map(lat, lon, label):
-    if current_marker[0] is not None:
-        try:
-            current_marker[0].delete()
-        except Exception:
-            pass
-    map_widget.set_position(lat, lon)
-    map_widget.set_zoom(11)
-    current_marker[0] = map_widget.set_marker(lat, lon, text=label)
+    # --- hiển thị thông tin ---
+    if "clicked_info" in st.session_state:
+        lat, lon, elev, slopev = st.session_state["clicked_info"]
+        st.markdown(f"""
+        ### 📍 Thông tin tại điểm đã chọn
+        - **Vĩ độ:** `{lat:.5f}`
+        - **Kinh độ:** `{lon:.5f}`
+        - **Độ cao:** `{elev:.2f} m`
+        - **Độ dốc:** `{slopev:.2f}°`
+        """)
 
-tk.Button(frame_left, text="Dự đoán", command=on_predict).pack(pady=8)
-
-# ======================
-# Bảng lịch sử
-# ======================
-frame_history = tk.LabelFrame(frame_left, text="Lịch sử dự đoán")
-frame_history.pack(fill="both", expand=True, padx=5, pady=5)
-
-history_table = ttk.Treeview(frame_history, columns=("addr", "hours", "prob", "flood"), show="headings", height=6)
-for col, text, w in [("addr", "Địa chỉ", 200), ("hours", "Khung giờ", 80), ("prob", "Xác suất sạt lở", 110), ("flood", "Ngập", 100)]:
-    history_table.heading(col, text=text)
-    history_table.column(col, width=w, anchor="center")
-history_table.pack(fill="both", expand=True, padx=5, pady=5)
-
-# ======================
-# Bản đồ
-# ======================
-map_widget = tkintermapview.TkinterMapView(frame_right, width=820, height=720, corner_radius=0)
-map_widget.pack(fill="both", expand=True)
-map_widget.set_zoom(8)
-map_widget.set_position(21.0285, 105.8542)
-
-root.mainloop()
