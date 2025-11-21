@@ -102,6 +102,14 @@ def get_forecast(lat, lon):
     resp.raise_for_status()
     return resp.json()
 
+def get_rain_last_hour(lat, lon):
+    """Lấy lượng mưa 1 giờ gần nhất từ OpenWeatherMap."""
+    url = f"http://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={API_KEY}&units=metric"
+    resp = requests.get(url, timeout=10)
+    data = resp.json()
+    rain_1h = data.get("rain", {}).get("1h", 0.0)
+    return float(rain_1h)
+
 def sum_rain_for_hours(lat, lon, hours, forecast_json=None):
     total = 0.0
     if forecast_json is None:
@@ -135,13 +143,18 @@ def predict_landslide(slope, elevation, rain_mean_year, soil_type, dist_river, r
         "rain_forecast_24h": rain_24h
     }])
     prob = model.predict_proba(new_point)[0][1]
-    label = "Nguy cơ cao" if prob > 0.5 else "Nguy cơ trung bình" if prob > 0.2 else "Nguy cơ thấp"
+    label = "Nguy cơ cao" if prob > 0.3 else "Nguy cơ thấp" if prob > 0.15 else "Không sạt lở"
     return prob, label
 
 # =========================
 # 5️⃣ Tabs chính
 # =========================
-tab1, tab2 = st.tabs(["📊 Dự báo Sạt lở & Ngập lụt", "🗺️ Bản đồ DEM & Độ dốc"])
+tab1, tab2, tab3 = st.tabs([
+    "📊 Dự báo Sạt lở & Ngập lụt",
+    "🗺️ Bản đồ DEM & Độ dốc",
+    "📝 Báo cáo sạt lở"
+])
+
 
 # =============== TAB 1 ===============
 with tab1:
@@ -152,10 +165,29 @@ with tab1:
         if mode == "Nhập địa chỉ":
             address = st.text_input("📍 Địa chỉ:")
             lat = lon = None
+            # ⭐ Nút lấy DEM từ địa chỉ
+            if st.button("Lấy độ cao & độ dốc từ DEM"):
+                try:
+                    # Lấy toạ độ từ OSM
+                    lat_tmp, lon_tmp, _ = get_coordinates_from_osm(address)
+
+                    # Lấy DEM
+                    elev_auto, slope_auto = get_value_at_latlon(lat_tmp, lon_tmp)
+
+                    # Lưu vào session
+                    st.session_state["auto_elev"] = elev_auto
+                    st.session_state["auto_slope"] = slope_auto
+
+                    st.success(
+                        f"✅ Lấy thành công! Độ cao: {elev_auto:.2f} m | Độ dốc: {slope_auto:.2f}°"
+                    )
+                except Exception as e:
+                    st.error(f"Lỗi: {e}")
+
         else:
             lat = st.number_input("Vĩ độ (latitude):", format="%.6f")
             lon = st.number_input("Kinh độ (longitude):", format="%.6f")
-            if st.button("📈 Lấy độ cao & độ dốc từ DEM"):
+            if st.button("Lấy độ cao & độ dốc từ DEM"):
                 try:
                     elev, slope = get_value_at_latlon(lat, lon)
                     st.session_state["auto_elev"] = elev
@@ -167,22 +199,37 @@ with tab1:
         slope = st.number_input("Độ dốc (%)", 0.0, value=st.session_state.get("auto_slope", 0.0))
         elev = st.number_input("Độ cao (m)", 0.0, value=st.session_state.get("auto_elev", 0.0))
         dist_river = st.number_input("Khoảng cách đến sông (km)", 0.0)
-        rain_mean_year = st.number_input("Lượng mưa TB năm (mm)", 0.0)
+        rain_mean_year = 1750
         soil_type = st.selectbox("Loại đất", soil_labels)
-        hours = st.selectbox("Khung giờ dự báo mưa", [1, 3, 6])
+        hours = st.selectbox("Khung giờ dự báo mưa", ["Tức thì",1, 3, 6])
 
         if st.button("🔍 Dự đoán"):
             try:
                 if mode == "Nhập địa chỉ":
                     lat, lon, full_addr = get_coordinates_from_osm(address)
+
+                    #  Tự động lấy độ cao và độ dốc từ DEM khi dùng địa chỉ
+                    try:
+                        elev_auto, slope_auto = get_value_at_latlon(lat, lon)
+                        st.session_state["auto_elev"] = elev_auto
+                        st.session_state["auto_slope"] = slope_auto
+                    except Exception as e:
+                        st.error(f"Lỗi khi lấy DEM từ địa chỉ: {e}")
+
                 elif lat and lon:
                     full_addr = f"Tọa độ ({lat:.5f}, {lon:.5f})"
                 else:
                     raise ValueError("Chưa nhập đủ tọa độ.")
 
                 forecast_json = get_forecast(lat, lon)
-                total_rain = sum_rain_for_hours(lat, lon, hours, forecast_json)
-                effective, flood_status = compute_flood_status_from_rain(total_rain, hours)
+                if hours == "Tức thì":
+                    rain_amount = get_rain_last_hour(lat, lon)
+                    total_rain = rain_amount
+                    effective, flood_status = compute_flood_status_from_rain(rain_amount, 1)
+                else:
+                    h = hours
+                    total_rain = sum_rain_for_hours(lat, lon, h, forecast_json)
+                    effective, flood_status = compute_flood_status_from_rain(total_rain, h)
 
                 mean_elev = df["elevation"].mean()
                 mean_slope = df["slope"].mean()
@@ -203,7 +250,7 @@ with tab1:
                     "prob": prob,
                     "lat": lat,
                     "lon": lon,
-                    "full_addr": full_addr
+                    "full_addr": full_addr,
                 }
 
             except Exception as e:
@@ -213,9 +260,13 @@ with tab1:
         if "result" in st.session_state:
             res = st.session_state["result"]
             color = "🟢" if res["label"] == "Nguy cơ thấp" else "🟠" if res["label"] == "Nguy cơ trung bình" else "🔴"
+            if res["hours"] == "Tức thì":
+                rain_text = f"🌧 Mưa hiện tại: `{res['total_rain']:.1f} mm`"
+            else:
+                rain_text = f"🌧 Mưa {res['hours']}h tới: `{res['total_rain']:.1f} mm`"
             st.markdown(f"""
                 ### 🔎 Kết quả dự đoán
-                🌧 Mưa {res["hours"]}h tới: `{res["total_rain"]:.1f} mm`  
+                {rain_text}  
                 🚨 Ngập: `{res["flood_status"]}`  
                 ⛰ Sạt lở: `{res["label"]}` ({res["prob"]*100:.1f}%){color}
             """)
@@ -272,3 +323,47 @@ with tab2:
         - **Độ dốc:** `{slopev:.2f}°`
         """)
 
+# =============== TAB 3 ===============
+with tab3:
+    st.header("📝 Báo cáo vụ sạt lở")
+
+    st.markdown("Hãy cung cấp thông tin chi tiết nhất có thể:")
+
+    colA, colB = st.columns(2)
+
+    with colA:
+        report_address = st.text_input("📍 Địa điểm xảy ra sạt lở")
+        report_lat = st.number_input("Vĩ độ (nếu biết)", format="%.6f")
+        report_lon = st.number_input("Kinh độ (nếu biết)", format="%.6f")
+
+        soil_type_report = st.text_input(
+            "Loại đất"
+        )
+
+    with colB:
+        severity = st.selectbox("Mức độ thiệt hại", [
+            "Nhẹ – chỉ sạt vài điểm nhỏ",
+            "Trung bình – cản trở giao thông",
+            "Nặng – sạt lớn, chôn lấp tài sản",
+            "Rất nặng – nguy hiểm đến tính mạng"
+        ])
+
+        causes = st.multiselect("Nguyên nhân quan sát được", [
+            "Mưa lớn kéo dài",
+            "Đất bão hòa nước",
+            "Gần khu vực sông suối",
+            "Hoạt động xây dựng",
+            "Không rõ"
+        ])
+
+        dist_river_report = st.number_input(
+            "Khoảng cách đến sông (km)",
+            min_value=0.0,
+            max_value=100.0,
+            step=0.1
+        )
+
+    notes = st.text_area("Ghi chú bổ sung (tùy chọn)")
+
+    if st.button("Gửi Báo cáo"):
+        st.success("Cảm ơn bạn đã cung cấp thông tin! Chúng tôi sẽ ghi nhận và xử lý.")
