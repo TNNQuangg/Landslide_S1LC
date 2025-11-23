@@ -57,7 +57,7 @@ with rasterio.open(dem_path) as src:
     slope_deg = np.degrees(slope_rad)
 
 tmp_dir = tempfile.gettempdir()
-slope_path = "Lao Cai_DEM.tif"
+slope_path = os.path.join(tmp_dir, f"LaoCai_SLOPE_{int(time.time())}.tif")
 profile.update(dtype=rasterio.float32, count=1, nodata=None)
 with rasterio.open(slope_path, "w", **profile) as dst:
     dst.write(slope_deg.astype(rasterio.float32), 1)
@@ -361,4 +361,3 @@ with tab3:
 
     if st.button("Gửi Báo cáo"):
         st.success("Cảm ơn bạn đã cung cấp thông tin! Chúng tôi sẽ ghi nhận và xử lý.")
-
