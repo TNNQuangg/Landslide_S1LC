@@ -26,9 +26,6 @@ st.title("🌋 Dự báo Sạt lở & Ngập lụt")
 # 2️⃣ Đọc dữ liệu & Train model
 # =========================
 csv_path = "Book1.csv"
-if not os.path.exists(csv_path):
-    st.error("⚠️ Không tìm thấy file Book1.csv trong thư mục.")
-    st.stop()
 
 df = pd.read_csv(csv_path)
 le = LabelEncoder()
@@ -47,9 +44,6 @@ API_KEY = "2d4a3206becec3a48aa294ad6c759160"
 # 3️⃣ Đọc DEM & tạo slope map
 # =========================
 dem_path = "Lao Cai_DEM.tif"
-if not os.path.exists(dem_path):
-    st.error("⚠️ Không tìm thấy file Lao Cai_DEM.tif trong thư mục.")
-    st.stop()
 
 with rasterio.open(dem_path) as src:
     dem = src.read(1, masked=True)
@@ -63,7 +57,7 @@ with rasterio.open(dem_path) as src:
     slope_deg = np.degrees(slope_rad)
 
 tmp_dir = tempfile.gettempdir()
-slope_path = os.path.join(tmp_dir, f"LaoCai_SLOPE_{int(time.time())}.tif")
+slope_path = "Lao Cai_DEM.tif"
 profile.update(dtype=rasterio.float32, count=1, nodata=None)
 with rasterio.open(slope_path, "w", **profile) as dst:
     dst.write(slope_deg.astype(rasterio.float32), 1)
@@ -367,3 +361,4 @@ with tab3:
 
     if st.button("Gửi Báo cáo"):
         st.success("Cảm ơn bạn đã cung cấp thông tin! Chúng tôi sẽ ghi nhận và xử lý.")
+
