@@ -1,4 +1,4 @@
-﻿id,slope ,elevation,rain_mean_year(mm),soil_type,dist_river,rain_forecast_24h ,label
+﻿id,slope ,elevation,rain_mean_year,soil_type,dist_river,rain_forecast_24h ,label
 1,17,788,2596,Đất xám bạc màu trên đá trầm tích và đá biến chất,1863,14,0
 2,5,72,2210,Đất xám bạc màu trên đá trầm tích và đá biến chất,307,20,0
 3,31,1708,2213,Đất xám bạc màu trên đá trầm tích và đá biến chất,10361,20,0
@@ -998,3 +998,4 @@
 997,,,,,,,
 998,,,,,,,
 999,,,,,,,
+
