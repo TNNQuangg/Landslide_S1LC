@@ -25,7 +25,7 @@ st.title("🌋 Dự báo Sạt lở & Ngập lụt")
 # =========================
 # 2️⃣ Đọc dữ liệu & Train model
 # =========================
-csv_path = os.path.join(os.path.dirname(__file__), "Book1.csv")
+csv_path = "Book1.csv"
 if not os.path.exists(csv_path):
     st.error("⚠️ Không tìm thấy file Book1.csv trong thư mục.")
     st.stop()
@@ -46,7 +46,7 @@ API_KEY = "2d4a3206becec3a48aa294ad6c759160"
 # =========================
 # 3️⃣ Đọc DEM & tạo slope map
 # =========================
-dem_path = os.path.join(os.path.dirname(__file__), "Lao Cai_DEM.tif")
+dem_path = "Lao Cai_DEM.tif"
 if not os.path.exists(dem_path):
     st.error("⚠️ Không tìm thấy file Lao Cai_DEM.tif trong thư mục.")
     st.stop()
@@ -151,7 +151,7 @@ def predict_landslide(slope, elevation, rain_mean_year, soil_type, dist_river, r
 # =========================
 tab1, tab2, tab3 = st.tabs([
     "📊 Dự báo Sạt lở & Ngập lụt",
-    "🗺️ Bản đồ DEM & Độ dốc",
+    "🗺️ Bản đồ DEM",
     "📝 Báo cáo sạt lở"
 ])
 
