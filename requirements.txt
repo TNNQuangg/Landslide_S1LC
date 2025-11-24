@@ -11,3 +11,4 @@ leafmap
 pyproj
 xarray
 localtileserver
+psutil
