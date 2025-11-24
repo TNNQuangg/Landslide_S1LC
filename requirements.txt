@@ -9,3 +9,5 @@ rasterio
 numpy
 leafmap
 pyproj
+xarray
+localtileserver
