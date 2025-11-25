@@ -54,7 +54,6 @@ DEM_FILES = [
     "Lao Cai_DEM.tif",
     "Yen Bai_DEM.tif",
     "Ha Giang_DEM.tif",
-    "Lai Chau_DEM.tif",
     "Son La_DEM.tif",
     "Tuyen Quang_DEM.tif"
 ]
@@ -439,3 +438,4 @@ with tab3:
 
     if st.button("Gửi Báo cáo"):
         st.success("Cảm ơn bạn đã cung cấp thông tin! Chúng tôi sẽ ghi nhận và xử lý.")
+
