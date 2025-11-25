@@ -302,6 +302,24 @@ with tab1:
                 st.error(f"Lỗi: {e}")
 
     with col2:
+              # --- Box chú thích ---
+        st.markdown("""
+            <div style="
+                background-color: #f8f9fa;
+                padding: 10px 15px;
+                border-radius: 8px;
+                border: 1px solid #ddd;
+                margin-bottom: 10px;
+            ">
+                <h4 style="margin-top:0;">Chú thích loại đất</h4>
+                <ul>
+                    <li><b>Type 1</b> – Đất feralit</li>
+                    <li><b>Type 2</b> – Đất mùn núi cao</li>
+                    <li><b>Type 3</b> – Đất phù sa</li>
+                    <li><b>Type 4</b> – Đất xám bạc màu</li>
+                </ul>
+            </div>
+        """, unsafe_allow_html=True)
         if "result" in st.session_state:
             res = st.session_state["result"]
             color = "🟢" if res["label"] == "Nguy cơ thấp" else "🟠" if res["label"] == "Nguy cơ trung bình" else "🔴"
@@ -437,5 +455,6 @@ with tab3:
 
     if st.button("Gửi Báo cáo"):
         st.success("Cảm ơn bạn đã cung cấp thông tin! Chúng tôi sẽ ghi nhận và xử lý.")
+
 
 
