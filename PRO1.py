@@ -243,7 +243,7 @@ with tab1:
 
         slope = st.number_input("Độ dốc (%)", 0.0, value=st.session_state.get("auto_slope", 0.0))
         elev = st.number_input("Độ cao (m)", 0.0, value=st.session_state.get("auto_elev", 0.0))
-        dist_river = st.number_input("Khoảng cách đến sông (km)", 0.0)
+        dist_river = st.number_input("Khoảng cách đến sông (m)", 0.0)
         rain_mean_year = 1750
         soil_type = st.selectbox("Loại đất", soil_labels)
         hours = st.selectbox("Khung giờ dự báo mưa", ["Tức thì", 1, 3, 6])
@@ -448,13 +448,14 @@ with tab3:
         )
 
         dist_river_report = st.number_input(
-            "Khoảng cách đến sông (km)", min_value=0.0, max_value=100.0, step=0.1
+            "Khoảng cách đến sông (m)", min_value=0.0, max_value=100.0, step=0.1
         )
 
     notes = st.text_area("Ghi chú bổ sung (tùy chọn)")
 
     if st.button("Gửi Báo cáo"):
         st.success("Cảm ơn bạn đã cung cấp thông tin! Chúng tôi sẽ ghi nhận và xử lý.")
+
 
 
 
