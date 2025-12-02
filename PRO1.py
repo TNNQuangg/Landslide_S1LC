@@ -241,7 +241,7 @@ with tab1:
                 except Exception as e:
                     st.error(f"Lỗi: {e}")
 
-        slope = st.number_input("Độ dốc (%)", 0.0, value=st.session_state.get("auto_slope", 0.0))
+        slope = st.number_input("Độ dốc (°)", 0.0, value=st.session_state.get("auto_slope", 0.0))
         elev = st.number_input("Độ cao (m)", 0.0, value=st.session_state.get("auto_elev", 0.0))
         dist_river = st.number_input("Khoảng cách đến sông (m)", 0.0)
         rain_mean_year = 1750
@@ -322,7 +322,7 @@ with tab1:
         """, unsafe_allow_html=True)
         if "result" in st.session_state:
             res = st.session_state["result"]
-            color = "🟢" if res["label"] == "Nguy cơ thấp" else "🟠" if res["label"] == "Nguy cơ trung bình" else "🔴"
+            color = "🟢" if res["label"] == "Không sạt lở" else "🟠" if res["label"] == "Nguy cơ thấp" else "🔴"
             if res["hours"] == "Tức thì":
                 rain_text = f"🌧 Mưa hiện tại: `{res['total_rain']:.1f} mm`"
             else:
@@ -363,7 +363,6 @@ with tab2:
         m2.add_raster(dem_path, colormap="terrain", layer_name=f"Độ cao (m) - {name}", opacity=0.5)
         m2.add_raster(slope_path, colormap="RdYlGn_r", layer_name=f"Độ dốc (°) - {name}", opacity=0.5)
 
-    folium.LayerControl(collapsed=False).add_to(m2)
 
     # --- nếu đã có marker cũ ---
     if "clicked_info" in st.session_state:
@@ -455,6 +454,7 @@ with tab3:
 
     if st.button("Gửi Báo cáo"):
         st.success("Cảm ơn bạn đã cung cấp thông tin! Chúng tôi sẽ ghi nhận và xử lý.")
+
 
 
 
