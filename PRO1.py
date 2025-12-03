@@ -356,17 +356,29 @@ with tab2:
     transformer = Transformer.from_crs(first["crs"], "EPSG:4326", always_xy=True)
     center_lon, center_lat = transformer.transform((b.left+b.right)/2, (b.top+b.bottom)/2)
 
-    m2 = leafmap.Map(center=[center_lat, center_lon], zoom=9, draw_control=False, measure_control=True)
+    m2 = leafmap.Map(center=[center_lat, center_lon], zoom=9, draw_control=False, measure_control=True, measure_system='metric')
     m2.add_basemap("OpenTopoMap")
 
-    # Thêm DEM & SLOPE dạng raster
+    # Thêm DEM + SLOPE
     for info in dem_infos:
         name = info["province"]
         m2.add_raster(info["dem_path"], layer_name=f"{name} - Elevation", opacity=0.5, colormap="terrain")
         m2.add_raster(info["slope_path"], layer_name=f"{name} - Slope", opacity=0.5, colormap="RdYlGn_r")
 
+    # 🔥 Nếu đã click trước đó, thêm marker TRƯỚC khi render map
+    if "clicked_info" in st.session_state:
+        lat, lon, elev, slope = st.session_state["clicked_info"]
+        folium.Marker(
+            [lat, lon],
+            popup=f"Độ cao: {elev:.2f} m<br>Độ dốc: {slope:.2f}°",
+            tooltip="Điểm đã chọn",
+            icon=folium.Icon(color="red", icon="info-sign"),
+        ).add_to(m2)
+
+    # Render map (sau khi đã add marker)
     click = st_folium(m2, height=600, width=900)
 
+    # Xử lý click mới
     if click and "last_clicked" in click and click["last_clicked"]:
         lat = click["last_clicked"]["lat"]
         lon = click["last_clicked"]["lng"]
@@ -433,6 +445,7 @@ with tab3:
 
     if st.button("Gửi Báo cáo"):
         st.success("Cảm ơn bạn đã cung cấp thông tin! Chúng tôi sẽ ghi nhận và xử lý.")
+
 
 
 
