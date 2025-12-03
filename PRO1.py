@@ -356,7 +356,7 @@ with tab2:
     transformer = Transformer.from_crs(first["crs"], "EPSG:4326", always_xy=True)
     center_lon, center_lat = transformer.transform((b.left+b.right)/2, (b.top+b.bottom)/2)
 
-    m2 = leafmap.Map(center=[center_lat, center_lon], zoom=9, draw_control=False, measure_control=True, measure_system='metric')
+    m2 = leafmap.Map(center=[center_lat, center_lon], zoom=9, draw_control=False, measure_control=True,  measure_system='metric', measure_units={'length': 'km', 'area': 'km²'})
     m2.add_basemap("OpenTopoMap")
 
     # Thêm DEM + SLOPE
@@ -394,8 +394,8 @@ with tab2:
         lat, lon, elev, slope = st.session_state["clicked_info"]
         st.markdown(f"""
         ### 📍 Điểm đã chọn
-        - **Lat:** {lat:.5f}
-        - **Lon:** {lon:.5f}
+        - **Vĩ độ:** {lat:.5f}
+        - **Kinh độ:** {lon:.5f}
         - **Độ cao:** {elev:.2f} m
         - **Độ dốc:** {slope:.2f} °
         """)
@@ -445,6 +445,7 @@ with tab3:
 
     if st.button("Gửi Báo cáo"):
         st.success("Cảm ơn bạn đã cung cấp thông tin! Chúng tôi sẽ ghi nhận và xử lý.")
+
 
 
 
