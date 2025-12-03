@@ -472,7 +472,7 @@ with tab2:
         center=[center_lat, center_lon], 
         zoom=9, 
         draw_control=False, 
-        measure_control=True}
+        measure_control=True
     )
     m2.add_basemap("OpenTopoMap")
 
@@ -598,3 +598,4 @@ with tab3:
         }
         
         st.success("✅ Cảm ơn bạn đã cung cấp thông tin! Báo cáo của bạn đã được ghi nhận.")
+
