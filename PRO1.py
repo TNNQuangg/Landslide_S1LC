@@ -47,15 +47,22 @@ model.fit(X, y)
 API_KEY = "2d4a3206becec3a48aa294ad6c759160"
 
 # =========================
-# 3️⃣ Đọc NHIỀU DEM & tạo slope map
+# 3️⃣ DEM + SLOPE (Không tính slope runtime)
 # =========================
 
-# 👉 Bạn chỉ cần sửa danh sách này theo tên file DEM của bạn
+# Bạn phải upload slope TIFF lên Google Drive và điền ID vào đây
 DEM_FILES = {
     "Lao Cai_DEM.tif": "1Cl_3pDOUN4xJXr2-OroZPs6mbJF--oBm",
-    "Yen Bai_DEM.tif": "1fcnnHlDfFnmiblOXjcRi6739Bcaf0WWD",
-    "Ha Giang_DEM.tif": "1ZxL3FgmgmNti7eRMoWqMLteC9dHxbAq6",
-    "Tuyen Quang_DEM.tif": "1ny4SahdGq_n1JaiLwY2CB4lExqNNvrmo"
+    "Lao Cai_DEM_SLOPE.tif": "1IjctcAWGzeINTqkh1nOCVF4aWkXoAyLF",
+
+    "Yen Bai_DEM.tif": "1OSquH03dGdfrMVvoCmt4eMVFlKL6mZZO",
+    "Yen Bai_DEM_SLOPE.tif": "1ITsZmNHz-TjVcOvH2QPD6Wp13kUDEsov",
+
+    "Ha Giang_DEM.tif": "1Fh7X7DJNpZ2qvOgcrDm-Vf_YomCprgqK",
+    "Ha Giang_DEM_SLOPE.tif": "16AGmHaPIhYui0hqurG2bOSHWdSC2m2vG",
+
+    "Tuyen Quang_DEM.tif": "1g2TTXaV4Ce3-ztXxPxQr327Rqz-S-XwC",
+    "Tuyen Quang_DEM_SLOPE.tif": "1E8G9DHq8nf02MjySzXwZ8GHn8UeHEYna"
 }
 
 def download_dem_files():
@@ -71,73 +78,62 @@ def ensure_dem_files():
 
 ensure_dem_files()
 
-existing_dem_files = [filename for filename in DEM_FILES.keys() if os.path.exists(filename)]
+# =========================
+# TẠO DANH SÁCH DEM + SLOPE MỘT CÁCH NHẸ
+# =========================
 
-if not existing_dem_files:
-    st.error("⚠️ Không tìm thấy bất kỳ file DEM nào trong danh sách DEM_FILES.")
-    st.stop()
+dem_infos = []
 
-dem_infos = []  # lưu thông tin cho từng DEM
-tmp_dir = tempfile.gettempdir()
+# Gom DEM + SLOPE theo tên tỉnh
+provinces = ["Lao Cai", "Yen Bai", "Ha Giang", "Tuyen Quang"]
 
-for dem_path in existing_dem_files:
-    with rasterio.open(dem_path) as src:
-        dem = src.read(1, masked=True)
-        transform_affine = src.transform
-        crs = src.crs
-        profile = src.profile.copy()
+for p in provinces:
+    dem_path = f"{p}_DEM.tif"
+    slope_path = f"{p}_DEM_SLOPE.tif"
 
-        xres = transform_affine[0]
-        yres = -transform_affine[4]
-        gy, gx = np.gradient(dem, yres, xres)
-        slope_rad = np.arctan(np.sqrt(gx * gx + gy * gy))
-        slope_deg = np.degrees(slope_rad)
-
-        slope_path = os.path.join(tmp_dir, f"{Path(dem_path).stem}_SLOPE.tif")
-        profile.update(dtype=rasterio.float32, count=1, nodata=None)
-        with rasterio.open(slope_path, "w", **profile) as dst:
-            dst.write(slope_deg.astype(rasterio.float32), 1)
-
-        dem_infos.append(
-            {
+    if os.path.exists(dem_path) and os.path.exists(slope_path):
+        # Mở raster CHỈ ĐỂ LẤY CRS + bounds (rất nhanh)
+        with rasterio.open(dem_path) as src:
+            dem_infos.append({
+                "province": p,
                 "dem_path": dem_path,
                 "slope_path": slope_path,
-                "crs": crs,
-                "bounds": src.bounds,
-            }
-        )
+                "crs": src.crs,
+                "bounds": src.bounds
+            })
+
 
 if not dem_infos:
     st.error("⚠️ Không tạo được raster độ dốc cho bất kỳ DEM nào.")
     st.stop()
 
-
 def get_value_at_latlon(lat, lon):
-    """Lấy độ cao và độ dốc từ BẤT KỲ DEM nào bao phủ tọa độ (lat, lon WGS84)."""
+    """Lấy độ cao & độ dốc từ DEM phù hợp (chỉ mở raster khi cần)."""
+
     for info in dem_infos:
         dem_path = info["dem_path"]
         slope_path = info["slope_path"]
         crs = info["crs"]
         bounds = info["bounds"]
 
-        # Chuyển WGS84 -> CRS của DEM
+        # Convert WGS84 → CRS DEM
         transformer = Transformer.from_crs("EPSG:4326", crs, always_xy=True)
         x, y = transformer.transform(lon, lat)
 
-        # Kiểm tra xem điểm có nằm trong extent của DEM này không
+        # Kiểm tra điểm có nằm trong khu vực DEM
         if not (bounds.left <= x <= bounds.right and bounds.bottom <= y <= bounds.top):
             continue
 
-        # Sample DEM & slope
-        with rasterio.open(dem_path) as src1, rasterio.open(slope_path) as src2:
-            coords = [(x, y)]
-            val_elev = list(src1.sample(coords))[0][0]
-            val_slope = list(src2.sample(coords))[0][0]
-        return float(val_elev), float(val_slope)
+        # CHỈ mở file khi thực sự cần → tối ưu hoá hoàn toàn
+        with rasterio.open(dem_path) as dem_src:
+            elev = list(dem_src.sample([(x, y)]))[0][0]
 
-    # Không DEM nào chứa điểm
+        with rasterio.open(slope_path) as slope_src:
+            slope = list(slope_src.sample([(x, y)]))[0][0]
+
+        return float(elev), float(slope)
+
     raise ValueError("Không tìm thấy DEM nào bao phủ vị trí này.")
-
 
 # =========================
 # 4️⃣ Hàm tiện ích
@@ -355,73 +351,42 @@ with tab1:
 
 # =============== TAB 2 ===============
 with tab2:
-    # Tính tâm bản đồ từ DEM đầu tiên (tùy chọn)
-    first_info = dem_infos[0]
-    b = first_info["bounds"]
-    transformer_center = Transformer.from_crs(first_info["crs"], "EPSG:4326", always_xy=True)
-    mid_x = (b.left + b.right) / 2
-    mid_y = (b.top + b.bottom) / 2
-    center_lon, center_lat = transformer_center.transform(mid_x, mid_y)
+    first = dem_infos[0]
+    b = first["bounds"]
+    transformer = Transformer.from_crs(first["crs"], "EPSG:4326", always_xy=True)
+    center_lon, center_lat = transformer.transform((b.left+b.right)/2, (b.top+b.bottom)/2)
 
-    # --- tạo map ---
     m2 = leafmap.Map(center=[center_lat, center_lon], zoom=9, draw_control=False, measure_control=True)
-    m2.add_child(folium.Element("<style>.leaflet-container { cursor: crosshair !important; }</style>"))
     m2.add_basemap("OpenTopoMap")
 
-    # Thêm tất cả DEM & slope vào map, mỗi file 1 layer riêng
+    # Thêm DEM & SLOPE dạng raster
     for info in dem_infos:
-        dem_path = info["dem_path"]
-        slope_path = info["slope_path"]
-        name = Path(dem_path).stem
+        name = info["province"]
+        m2.add_raster(info["dem_path"], layer_name=f"{name} - Elevation", opacity=0.5, colormap="terrain")
+        m2.add_raster(info["slope_path"], layer_name=f"{name} - Slope", opacity=0.5, colormap="RdYlGn_r")
 
-        m2.add_raster(dem_path, colormap="terrain", layer_name=f"Độ cao (m) - {name}", opacity=0.5)
-        m2.add_raster(slope_path, colormap="RdYlGn_r", layer_name=f"Độ dốc (°) - {name}", opacity=0.5)
+    click = st_folium(m2, height=600, width=900)
 
-
-    # --- nếu đã có marker cũ ---
-    if "clicked_info" in st.session_state:
-        lat_c, lon_c, elev_c, slope_c = st.session_state["clicked_info"]
-        folium.Marker(
-            [lat_c, lon_c],
-            popup=f"Độ cao: {elev_c:.2f} m<br>Độ dốc: {slope_c:.2f}°",
-            tooltip="Điểm đã chọn",
-            icon=folium.Icon(color="blue", icon="info-sign"),
-        ).add_to(m2)
-
-    # --- map hiển thị ---
-    click = st_folium(m2, width=900, height=600)
-
-    # --- xử lý khi click mới ---
     if click and "last_clicked" in click and click["last_clicked"]:
-        lat_click = click["last_clicked"]["lat"]
-        lon_click = click["last_clicked"]["lng"]
-        try:
-            elev_c, slope_c = get_value_at_latlon(lat_click, lon_click)
-            st.session_state["clicked_info"] = (lat_click, lon_click, elev_c, slope_c)
+        lat = click["last_clicked"]["lat"]
+        lon = click["last_clicked"]["lng"]
 
-            # thêm marker trước khi rerun
-            folium.Marker(
-                [lat_click, lon_click],
-                popup=f"Độ cao: {elev_c:.2f} m<br>Độ dốc: {slope_c:.2f}°",
-                tooltip="Điểm vừa chọn",
-                icon=folium.Icon(color="red", icon="info-sign"),
-            ).add_to(m2)
+        try:
+            elev, slope = get_value_at_latlon(lat, lon)
+            st.session_state["clicked_info"] = (lat, lon, elev, slope)
             st.rerun()
         except Exception as e:
-            st.warning(f"Không tìm thấy DEM cho vị trí này: {e}")
+            st.warning(f"Không tìm thấy DEM: {e}")
 
-    # --- hiển thị thông tin ---
     if "clicked_info" in st.session_state:
-        lat_c, lon_c, elev_c, slope_c = st.session_state["clicked_info"]
-        st.markdown(
-            f"""
-        ### 📍 Thông tin tại điểm đã chọn
-        - **Vĩ độ:** `{lat_c:.5f}`
-        - **Kinh độ:** `{lon_c:.5f}`
-        - **Độ cao:** `{elev_c:.2f} m`
-        - **Độ dốc:** `{slope_c:.2f}°`
-        """
-        )
+        lat, lon, elev, slope = st.session_state["clicked_info"]
+        st.markdown(f"""
+        ### 📍 Điểm đã chọn
+        - **Lat:** {lat:.5f}
+        - **Lon:** {lon:.5f}
+        - **Độ cao:** {elev:.2f} m
+        - **Độ dốc:** {slope:.2f} °
+        """)
 
 # =============== TAB 3 ===============
 with tab3:
@@ -468,6 +433,7 @@ with tab3:
 
     if st.button("Gửi Báo cáo"):
         st.success("Cảm ơn bạn đã cung cấp thông tin! Chúng tôi sẽ ghi nhận và xử lý.")
+
 
 
 
