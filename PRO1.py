@@ -15,6 +15,7 @@ import time
 import tempfile
 from pathlib import Path
 from pyproj import Transformer
+import gdown
 
 warnings.filterwarnings("ignore", category=rasterio.errors.NotGeoreferencedWarning)
 
@@ -50,14 +51,24 @@ API_KEY = "2d4a3206becec3a48aa294ad6c759160"
 # =========================
 
 # 👉 Bạn chỉ cần sửa danh sách này theo tên file DEM của bạn
-DEM_FILES = [
-    "Lao Cai_DEM.tif",
-    "Yen Bai_DEM.tif",
-    "Ha Giang_DEM.tif",
-    "Tuyen Quang_DEM.tif"
-]
+DEM_FILES = {
+    "Lao Cai_DEM.tif": "1Cl_3pDOUN4xJXr2-OroZPs6mbJF--oBm",
+    "Yen Bai_DEM.tif": "1fcnnHlDfFnmiblOXjcRi6739Bcaf0WWD",
+    "Ha Giang_DEM.tif": "1ZxL3FgmgmNti7eRMoWqMLteC9dHxbAq6",
+    "Tuyen Quang_DEM.tif": "1ny4SahdGq_n1JaiLwY2CB4lExqNNvrmo"
+}
 
-existing_dem_files = [f for f in DEM_FILES if os.path.exists(f)]
+def download_dem_files():
+    for filename, file_id in DEM_FILES.items():
+        if not os.path.exists(filename):
+            url = f"https://drive.google.com/uc?id={file_id}"
+            st.warning(f"Đang tải {filename} từ Google Drive...")
+            gdown.download(url, filename, quiet=False, use_cookies=False)
+            st.success(f"Tải thành công: {filename}")
+
+download_dem_files()
+
+existing_dem_files = [filename for filename in DEM_FILES.keys() if os.path.exists(filename)]
 
 if not existing_dem_files:
     st.error("⚠️ Không tìm thấy bất kỳ file DEM nào trong danh sách DEM_FILES.")
@@ -454,6 +465,7 @@ with tab3:
 
     if st.button("Gửi Báo cáo"):
         st.success("Cảm ơn bạn đã cung cấp thông tin! Chúng tôi sẽ ghi nhận và xử lý.")
+
 
 
 
