@@ -7,9 +7,10 @@ folium
 streamlit-folium
 rasterio
 numpy
-leafmap>=0.23.0
+leafmap==0.28.0
 pyproj
 xarray
 localtileserver
 psutil
+
 
