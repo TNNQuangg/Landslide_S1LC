@@ -53,14 +53,14 @@ API_KEY = "2d4a3206becec3a48aa294ad6c759160"
 
 # ID Google Drive của các file DEM và SLOPE
 DEM_FILES = {
-    "Lao Cai_DEM.tif": "1Cl_3pDOUN4xJXr2-OroZPs6mbJF--oBm",
-    "Lao Cai_DEM_SLOPE.tif": "1IjctcAWGzeINTqkh1nOCVF4aWkXoAyLF",
+    "Tuyen Quang_DEM.tif": "1g2TTXaV4Ce3-ztXxPxQr327Rqz-S-XwC",
+    "Tuyen Quang_DEM_SLOPE.tif": "1E8G9DHq8nf02MjySzXwZ8GHn8UeHEYna",
     "Yen Bai_DEM.tif": "1OSquH03dGdfrMVvoCmt4eMVFlKL6mZZO",
     "Yen Bai_DEM_SLOPE.tif": "1ITsZmNHz-TjVcOvH2QPD6Wp13kUDEsov",
     "Ha Giang_DEM.tif": "1Fh7X7DJNpZ2qvOgcrDm-Vf_YomCprgqK",
     "Ha Giang_DEM_SLOPE.tif": "16AGmHaPIhYui0hqurG2bOSHWdSC2m2vG",
-    "Tuyen Quang_DEM.tif": "1g2TTXaV4Ce3-ztXxPxQr327Rqz-S-XwC",
-    "Tuyen Quang_DEM_SLOPE.tif": "1E8G9DHq8nf02MjySzXwZ8GHn8UeHEYna"
+    "Lao Cai_DEM.tif": "1Cl_3pDOUN4xJXr2-OroZPs6mbJF--oBm",
+    "Lao Cai_DEM_SLOPE.tif": "1IjctcAWGzeINTqkh1nOCVF4aWkXoAyLF"
 }
 
 def download_dem_files():
@@ -604,5 +604,6 @@ with tab3:
         }
         
         st.success("✅ Cảm ơn bạn đã cung cấp thông tin! Báo cáo của bạn đã được ghi nhận.")
+
 
 
