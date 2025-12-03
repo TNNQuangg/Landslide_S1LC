@@ -356,8 +356,30 @@ with tab2:
     transformer = Transformer.from_crs(first["crs"], "EPSG:4326", always_xy=True)
     center_lon, center_lat = transformer.transform((b.left+b.right)/2, (b.top+b.bottom)/2)
 
-    m2 = leafmap.Map(center=[center_lat, center_lon], zoom=9, draw_control=False, measure_control=True,  measure_system='metric', measure_units={'length': 'km', 'area': 'km²'})
+    m2 = leafmap.Map(
+    center=[center_lat, center_lon],
+    zoom=9,
+    draw_control=False,
+    measure_control=False)
+    
     m2.add_basemap("OpenTopoMap")
+
+    # Thêm plugin đo METRIC
+    measure_js = """
+    <script>
+        setTimeout(function() {
+            var measureControl = new L.Control.Measure({
+                primaryLengthUnit: 'meters',
+                secondaryLengthUnit: 'kilometers',
+                primaryAreaUnit: 'sqmeters',
+                secondaryAreaUnit: 'hectares',
+                activeColor: '#ABE67E'
+            });
+            measureControl.addTo(window.map);
+        }, 500);
+    </script>
+    """
+    m2.add_child(folium.Element(measure_js))
 
     # Thêm DEM + SLOPE
     for info in dem_infos:
@@ -445,6 +467,7 @@ with tab3:
 
     if st.button("Gửi Báo cáo"):
         st.success("Cảm ơn bạn đã cung cấp thông tin! Chúng tôi sẽ ghi nhận và xử lý.")
+
 
 
 
