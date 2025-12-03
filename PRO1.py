@@ -363,23 +363,31 @@ with tab2:
     measure_control=False)
     
     m2.add_basemap("OpenTopoMap")
-
-    # Thêm plugin đo METRIC
-    measure_js = """
+    
+    measure_plugin = """
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-measure@3.3.0/dist/leaflet-measure.css" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-measure@3.3.0/dist/leaflet-measure.min.js"></script>
+    
     <script>
+        // Đợi bản đồ tải xong
         setTimeout(function() {
             var measureControl = new L.Control.Measure({
                 primaryLengthUnit: 'meters',
                 secondaryLengthUnit: 'kilometers',
                 primaryAreaUnit: 'sqmeters',
                 secondaryAreaUnit: 'hectares',
-                activeColor: '#ABE67E'
+                activeColor: '#FF0000',
+                completedColor: '#00FF00'
             });
+    
+            // window.map = bản đồ mà leafmap tạo
             measureControl.addTo(window.map);
         }, 500);
     </script>
     """
-    m2.add_child(folium.Element(measure_js))
+    
+    m2.add_child(folium.Element(measure_plugin))
+
 
     # Thêm DEM + SLOPE
     for info in dem_infos:
@@ -467,6 +475,7 @@ with tab3:
 
     if st.button("Gửi Báo cáo"):
         st.success("Cảm ơn bạn đã cung cấp thông tin! Chúng tôi sẽ ghi nhận và xử lý.")
+
 
 
 
