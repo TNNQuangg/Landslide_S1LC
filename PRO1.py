@@ -64,7 +64,12 @@ def download_dem_files():
             url = f"https://drive.google.com/uc?id={file_id}"
             gdown.download(url, filename, quiet=False, use_cookies=False)
 
-download_dem_files()
+@st.cache_resource
+def ensure_dem_files():
+    download_dem_files()
+    return True
+
+ensure_dem_files()
 
 existing_dem_files = [filename for filename in DEM_FILES.keys() if os.path.exists(filename)]
 
@@ -463,6 +468,7 @@ with tab3:
 
     if st.button("Gửi Báo cáo"):
         st.success("Cảm ơn bạn đã cung cấp thông tin! Chúng tôi sẽ ghi nhận và xử lý.")
+
 
 
 
