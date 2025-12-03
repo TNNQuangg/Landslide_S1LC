@@ -62,9 +62,7 @@ def download_dem_files():
     for filename, file_id in DEM_FILES.items():
         if not os.path.exists(filename):
             url = f"https://drive.google.com/uc?id={file_id}"
-            st.warning(f"Đang tải {filename} từ Google Drive...")
             gdown.download(url, filename, quiet=False, use_cookies=False)
-            st.success(f"Tải thành công: {filename}")
 
 download_dem_files()
 
@@ -465,6 +463,7 @@ with tab3:
 
     if st.button("Gửi Báo cáo"):
         st.success("Cảm ơn bạn đã cung cấp thông tin! Chúng tôi sẽ ghi nhận và xử lý.")
+
 
 
 
