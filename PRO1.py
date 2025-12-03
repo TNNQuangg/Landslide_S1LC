@@ -394,7 +394,7 @@ with tab1:
                 st.error(f"Lỗi khi dự đoán: {e}")
 
     with col2:
-        st.header("✨ Kết quả & Vị trí")
+        st.header("Kết quả & Vị trí")
         
         # --- Box chú thích ---
         st.markdown("""
@@ -457,7 +457,7 @@ with tab1:
 
 # --- TAB 2: Bản đồ DEM ---
 with tab2:
-    st.header("🗺️ Bản đồ Địa hình Số (DEM) & Độ dốc (SLOPE)")
+    st.header("🗺️ Bản đồ Địa hình Số (DEM)")
     st.markdown("Sử dụng bản đồ này để trực quan hóa địa hình và tự động lấy **Độ cao** và **Độ dốc** tại điểm bạn click.")
     
     # Lấy thông tin DEM đầu tiên để đặt vị trí trung tâm mặc định
@@ -467,11 +467,17 @@ with tab2:
     transformer = Transformer.from_crs(first["crs"], "EPSG:4326", always_xy=True)
     center_lon, center_lat = transformer.transform((b.left+b.right)/2, (b.top+b.bottom)/2)
 
-    # Khởi tạo bản đồ với leafmap
+    # Nếu có marker trước đó → lấy nó làm tâm bản đồ
+    if "clicked_info" in st.session_state:
+        last_lat, last_lon, _, _ = st.session_state["clicked_info"]
+        start_center = [last_lat, last_lon]
+    else:
+        start_center = [center_lat, center_lon]   # Tâm mặc định ban đầu
+    
     m2 = leafmap.Map(
-        center=[center_lat, center_lon], 
-        zoom=9, 
-        draw_control=False, 
+        center=start_center,
+        zoom=12 if "clicked_info" in st.session_state else 9,
+        draw_control=False,
         measure_control=True
     )
     m2.add_basemap("OpenTopoMap")
@@ -598,4 +604,5 @@ with tab3:
         }
         
         st.success("✅ Cảm ơn bạn đã cung cấp thông tin! Báo cáo của bạn đã được ghi nhận.")
+
 
