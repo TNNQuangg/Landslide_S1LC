@@ -1,0 +1,129 @@
+{
+  "trained_at": "2026-06-13T06:55:48.091738+00:00",
+  "data_path": "Book1.csv",
+  "data_hash": "f70869ffa3e80875c700e95105c9a2147a7746ac34a88cba90815a4d814dbc62",
+  "rows": 800,
+  "feature_columns": [
+    "slope",
+    "elevation",
+    "rain_mean_year",
+    "soil_type",
+    "dist_river",
+    "rain_forecast_24h"
+  ],
+  "target_column": "label",
+  "label_counts": {
+    "0": 499,
+    "1": 301
+  },
+  "risk_thresholds": {
+    "low": 0.48,
+    "high": 0.96
+  },
+  "test": {
+    "test_size": 0.2,
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "roc_auc": 1.0,
+    "confusion_matrix": [
+      [
+        100,
+        0
+      ],
+      [
+        0,
+        60
+      ]
+    ]
+  },
+  "cross_validation": {
+    "accuracy": {
+      "scores": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.99375
+      ],
+      "mean": 0.99875,
+      "std": 0.0025
+    },
+    "precision": {
+      "scores": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "mean": 1.0,
+      "std": 0.0
+    },
+    "recall": {
+      "scores": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.983607
+      ],
+      "mean": 0.996721,
+      "std": 0.006557
+    },
+    "f1": {
+      "scores": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.991736
+      ],
+      "mean": 0.998347,
+      "std": 0.003306
+    },
+    "roc_auc": {
+      "scores": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.993376
+      ],
+      "mean": 0.998675,
+      "std": 0.002649
+    }
+  },
+  "feature_importance": [
+    {
+      "feature": "soil_type_Type 1",
+      "importance": 0.3125
+    },
+    {
+      "feature": "rain_forecast_24h",
+      "importance": 0.01875
+    },
+    {
+      "feature": "slope",
+      "importance": 0.00875
+    },
+    {
+      "feature": "elevation",
+      "importance": 0.0
+    },
+    {
+      "feature": "rain_mean_year",
+      "importance": 0.0
+    },
+    {
+      "feature": "dist_river",
+      "importance": 0.0
+    }
+  ],
+  "notes": [
+    "rain_mean_year values equal to 0 are treated as missing and imputed.",
+    "rain_forecast_24h values equal to 0 are kept as no-rain observations.",
+    "Upgraded to HistGradientBoostingClassifier for higher speed and performance."
+  ]
+}

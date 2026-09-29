@@ -1,0 +1,15 @@
+streamlit
+pandas
+requests
+joblib
+gdown
+scikit-learn
+folium
+streamlit-folium
+rasterio
+numpy
+leafmap>=0.24.0
+pyproj
+xarray
+localtileserver
+psutil
